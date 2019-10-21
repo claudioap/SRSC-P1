@@ -1,13 +1,21 @@
+package chat.config;
+
+import chat.config.BadConfigException;
+import chat.config.ChannelConfig;
+
+import javax.crypto.NoSuchPaddingException;
 import java.io.*;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class REConfigParser {
+public class ConfigParser {
     private static int flags = Pattern.DOTALL;
     private static Pattern hostPattern = Pattern.compile(
             "<(?<ip>(?:\\d{1,3}\\.){3}\\d{1,3}):(?<port>\\d{1,5})>" +
@@ -15,9 +23,10 @@ public class REConfigParser {
                     "</(?<ip2>(?:\\d{1,3}\\.){3}\\d{1,3})>",
             flags);
     private static Pattern tagPattern = Pattern.compile("<(?<tag>.+?)>(?<content>.*?)</.+?>", flags);
-    private ArrayList<ChannelConfig> configs = new ArrayList<>();
 
-    public REConfigParser(File configFile) throws IOException {
+    public static List<ChannelConfig> from(File configFile)
+            throws IOException, NoSuchPaddingException, MissingFieldException, BadConfigException, NoSuchAlgorithmException {
+        ArrayList<ChannelConfig> configs = new ArrayList<>();
         InputStream is = new FileInputStream(configFile);
         byte[] fileContents = is.readAllBytes();
         String configString = new String(fileContents, StandardCharsets.UTF_8);
@@ -27,10 +36,10 @@ public class REConfigParser {
             String ipCheck = match.group("ip");
             int port = Integer.parseInt(match.group("port"));
             if (!ip.equals(ipCheck)) {
-                // Ó palhaço!
+                throw new BadConfigException("IP mismatch in tag pairs <" + ip + "> and <" + ipCheck + ">");
             }
             if (port > 65535) {
-                // Ó palhaço!
+                throw new BadConfigException("Port " + port + " isn't a valid port");
             }
             InetAddress address = Inet4Address.getByName(ip);
             InetSocketAddress socketAddress = new InetSocketAddress(address, port);
@@ -65,57 +74,15 @@ public class REConfigParser {
                             channelConfig.macKeySize = Integer.parseInt(innerMatch.group("content"));
                             break;
                         default:
-                            // Ó palhaço!
+                            // TODO Ó palhaço!
                     }
                 } catch (NumberFormatException e) {
-                    // Ó palhaço!
+                    throw new BadConfigException("Unable to parse integer in the configuration of " + socketAddress);
                 }
             }
-            if (!channelConfig.isComplete()) {
-                // Ó palhaço!
-            }
+            channelConfig.loadAlgorithms();
             configs.add(channelConfig);
         }
-    }
-
-    class ChannelConfig {
-        public ChannelConfig(InetSocketAddress address) {
-            this.address = address;
-        }
-
-        private InetSocketAddress address;
-        private String chatID;
-        private String symmetricAlgorithm;
-        private Integer symmetricKeySize;
-        private String mode;
-        private String paddingAlgorithm;
-        private String integrityHash;
-        private String macAlgorithm;
-        private Integer macKeySize;
-
-        private boolean isComplete() {
-            return !(chatID == null
-                    || symmetricAlgorithm == null
-                    || symmetricKeySize == null
-                    || mode == null
-                    || paddingAlgorithm == null
-                    || integrityHash == null
-                    || macAlgorithm == null
-                    || macKeySize == null);
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder builder = new StringBuilder();
-            builder.append("Addr=").append(address).append(";");
-            builder.append("SID=").append(chatID).append(";");
-            builder.append("SymAlg=").append(symmetricAlgorithm).append(";");
-            builder.append("SymKS=").append(symmetricKeySize).append(";");
-            builder.append("Mode=").append(mode).append(";");
-            builder.append("Hash=").append(integrityHash).append(";");
-            builder.append("MAC=").append(macAlgorithm).append(";");
-            builder.append("MACKS=").append(macKeySize).append(";");
-            return builder.toString();
-        }
+        return configs;
     }
 }
