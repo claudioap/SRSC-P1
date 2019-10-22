@@ -4,6 +4,7 @@ import chat.Message;
 import chat.config.ChannelConfig;
 import chat.networking.SCMPSocket;
 import view.ChatPane;
+import view.SpeechAuthor;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -14,7 +15,7 @@ public class ChatController {
     SCMPSocket socket;
     private ChatPane chatPane;
     private AppController appController;
-    private ChannelConfig channelConfig;
+    ChannelConfig channelConfig;
     private String username;
     private int messageCount = 0; // Used to generate sequence number
     private boolean stopFlag = false;
@@ -46,6 +47,11 @@ public class ChatController {
     public void shutdown() throws InterruptedException {
         stopFlag = true;
         inputHandler.join();
+    }
+
+    public void sendMessage(String message) {
+        chatPane.addMessage("TODO", message, SpeechAuthor.SELF);
+
     }
 
     class InputHandler extends Thread {

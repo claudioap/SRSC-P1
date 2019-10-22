@@ -2,6 +2,8 @@ package view;
 
 import controller.AppController;
 import javafx.application.Application;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Pos;
@@ -24,9 +26,13 @@ public class ChatClient extends Application {
     protected AppController controller;
     protected Scene scene;
     protected Stage stage;
+    @FXML
     protected TextField sendField;
+    @FXML
     protected Button sendBtn;
+    @FXML
     protected TabPane tabPane;
+
 
     @Override
     public void start(Stage stage) throws Exception {
@@ -39,19 +45,28 @@ public class ChatClient extends Application {
         sendBtn = (Button) scene.lookup("#sendBtn");
         tabPane = (TabPane) scene.lookup("#tabPane");
         controller = new AppController(this);
+        sendBtn.setOnAction((button) -> onSendInputAction());
+        sendField.setOnAction((field) -> onSendInputAction());
+        tabPane.getSelectionModel().selectedItemProperty().addListener(
+                (ov, oldTab, newTab) -> controller.changeCurrentChat(newTab.getId())
+        );
         stage.show();
     }
 
-    public void addChatPane(String title, ChatPane chatPane) {
+    public void addChatPane(String tabId, String title, ChatPane chatPane) {
         Tab tab = new Tab();
+        tab.setId(tabId);
         tab.setText(title);
         tab.setContent(chatPane);
         tabPane.getTabs().add(tab);
     }
 
-    @FXML
     private void onSendInputAction() {
-        System.out.println("Hello");
+        String message = sendField.getText();
+        sendField.setText("");
+        if (!"".equals(message)) {
+            controller.sendMessage(message);
+        }
     }
 
     public String promptUsername() {
@@ -80,6 +95,7 @@ public class ChatClient extends Application {
         dialog.getDialogPane().getButtonTypes().add(okType);
 
         PasswordField pwd = new PasswordField();
+        pwd.setText(" ");
         pwd.setPrefWidth(240);
         VBox vContent = new VBox();
         image = new Image(getClass().getResource("banks.png").toString());

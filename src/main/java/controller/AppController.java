@@ -15,13 +15,12 @@ import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
 
 public class AppController {
-    private List<ChannelConfig> configs;
     private ChatClient view;
-    private ArrayList<ChatController> chatControllers = new ArrayList<>();
+    private HashMap<String, ChatController> chatControllers = new HashMap<>();
+    private ChatController currentChatController;
     private EzKeyStore keyHandler;
 
     public AppController(ChatClient view) {
@@ -45,22 +44,28 @@ public class AppController {
                 }
                 config.attachKeys(symmetric, mac);
                 ChatPane chatPane = new ChatPane();
+                view.addChatPane(config.hashedIdentifier(), config.getChatID(), chatPane);
                 ChatController chatController = new ChatController(this, chatPane, config, username);
-                view.addChatPane(config.getChatID(), chatPane);
-                chatControllers.add(chatController);
+                if (currentChatController == null) {
+                    currentChatController = chatController;
+                }
+                chatControllers.put(config.hashedIdentifier(), chatController);
             }
         } catch (IOException | NoSuchAlgorithmException e) {
             e.printStackTrace();
             System.err.println("Configuration missing");
             System.exit(-1);
-        } catch (CertificateException | KeyStoreException e) {
-            e.printStackTrace();
-        } catch (NoSuchPaddingException e) {
-            e.printStackTrace();
-        } catch (BadConfigException e) {
-            e.printStackTrace();
-        } catch (MissingFieldException e) {
+        } catch (CertificateException | KeyStoreException | NoSuchPaddingException | BadConfigException | MissingFieldException e) {
             e.printStackTrace();
         }
+    }
+
+    public void sendMessage(String message) {
+        currentChatController.sendMessage(message);
+
+    }
+
+    public void changeCurrentChat(String chatHashId) {
+        currentChatController = chatControllers.get(chatHashId);
     }
 }

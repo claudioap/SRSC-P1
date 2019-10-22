@@ -1,38 +1,69 @@
 package view;
 
 import controller.ChatController;
+import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
+import javafx.geometry.VPos;
+import javafx.scene.Node;
 import javafx.scene.control.ListView;
 import javafx.scene.layout.AnchorPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
+import javafx.scene.text.Text;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Enumeration;
 import java.util.Iterator;
+import java.util.Map;
 
 public class ChatPane extends AnchorPane {
-    protected ListView msgList;
+    @FXML
+    protected GridPane msgGrid;
+    @FXML
     protected ListView peerList;
+    @FXML
     protected Pane graphPane;
+
     protected ChatController controller;
 
     public ChatPane() {
         super();
         try {
-            Parent chatUI = FXMLLoader.load(getClass().getResource("chat.fxml"));
-            super.getChildren().add(chatUI);
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("chat.fxml"));
+            Node chatUI = loader.load();
+            Map<String, Object> namespace = loader.getNamespace();
+
+            getChildren().add(chatUI);
             setTopAnchor(chatUI, 0.0);
             setBottomAnchor(chatUI, 0.0);
             setLeftAnchor(chatUI, 0.0);
             setRightAnchor(chatUI, 0.0);
-            msgList = (ListView) chatUI.lookup("#msgList");
-            peerList = (ListView) chatUI.lookup("#peerList");
-            graphPane = (Pane) chatUI.lookup("#graphPane");
+            msgGrid = (GridPane) namespace.get("msgGrid");
+            peerList = (ListView) namespace.get("peerList");
+            graphPane = (Pane) namespace.get("graphPane");
+//            peerList.getItems().add("ABC");
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public void addMessage(String author, String content, SpeechAuthor direction) {
+        int row = msgGrid.getRowCount();
+//        Text authorText = new Text(localAuthor);
+        UserSymbol userSymbol = new UserSymbol(author);
+        Text placeholder = new Text("");
+        SpeechBox speechBox = new SpeechBox(content, direction);
+        switch (direction) {
+            case SELF:
+                msgGrid.addRow(row, placeholder, speechBox, userSymbol);
+                break;
+            case OTHER:
+                msgGrid.addRow(row, userSymbol, speechBox, placeholder);
+        }
+        GridPane.setValignment(userSymbol, VPos.TOP);
+        GridPane.setHgrow(speechBox, Priority.ALWAYS);
     }
 
     public void assignController(ChatController controller) {

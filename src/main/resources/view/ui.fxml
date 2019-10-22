@@ -11,7 +11,7 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox prefHeight="600.0" prefWidth="900.0" xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="view.ChatClient">
+<VBox prefHeight="600.0" prefWidth="900.0" xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1">
   <children>
     <MenuBar VBox.vgrow="NEVER">
       <menus>
@@ -52,10 +52,10 @@
         </Menu>
       </menus>
     </MenuBar>
-      <TabPane id="tabPane" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS" />
+      <TabPane id="tabPane" fx:id="tabPane" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS" />
       <HBox id="HBox" alignment="CENTER_LEFT" spacing="5.0">
          <children>
-            <TextField id="sendField" onAction="#onSendInputAction" HBox.hgrow="ALWAYS" />
+            <TextField id="sendField" fx:id="sendField" HBox.hgrow="ALWAYS" />
             <Button id="sendBtn" mnemonicParsing="false" text="Send" />
          </children>
          <padding>
