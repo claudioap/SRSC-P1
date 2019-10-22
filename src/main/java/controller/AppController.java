@@ -50,6 +50,7 @@ public class AppController {
                 chatControllers.add(chatController);
             }
         } catch (IOException | NoSuchAlgorithmException e) {
+            e.printStackTrace();
             System.err.println("Configuration missing");
             System.exit(-1);
         } catch (CertificateException | KeyStoreException e) {

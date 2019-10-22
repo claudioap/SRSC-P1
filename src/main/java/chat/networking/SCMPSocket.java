@@ -23,7 +23,7 @@ public class SCMPSocket extends MulticastSocket {
     private ChannelConfig channelConfig;
 
     public SCMPSocket(ChannelConfig channelConfig) throws IOException {
-        super(channelConfig.getAddress());
+        super(channelConfig.getAddress().getPort());
         this.channelConfig = channelConfig;
     }
 
@@ -52,7 +52,7 @@ public class SCMPSocket extends MulticastSocket {
         }
     }
 
-    private byte[] encode(byte[] plainText) throws IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, ShortBufferException, InvalidKeyException, IOException {
+    private byte[] encode(byte[] plainText) throws IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, InvalidKeyException, IOException {
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
         DataOutputStream dataStream = new DataOutputStream(byteStream);
         dataStream.writeByte(1); // TODO Protocol version

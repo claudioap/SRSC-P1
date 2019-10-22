@@ -100,6 +100,9 @@ public class EzKeyStore {
         KeyStore.Entry entry = null;
         try {
             entry = store.getEntry(alias, keyPassword);
+            if (entry == null){
+                return null;
+            }
             return ((KeyStore.SecretKeyEntry) entry).getSecretKey();
         } catch (UnrecoverableEntryException | NoSuchAlgorithmException | KeyStoreException e) {
             return null;

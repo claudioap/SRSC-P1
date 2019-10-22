@@ -5,9 +5,8 @@ import chat.config.ChannelConfig;
 import chat.networking.SCMPSocket;
 import view.ChatPane;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.net.DatagramPacket;
 import java.security.NoSuchAlgorithmException;
 
@@ -57,12 +56,17 @@ public class ChatController {
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
             while (!stopFlag) {
                 try {
+                    packet.setLength(buffer.length);
                     socket.receive(packet);
                     deliver(Message.deserialize(packet.getData(), channelConfig));
+
+                } catch (InterruptedIOException e) {
+                    // Timeout used to periodically check stop flag
                 } catch (IOException | NoSuchAlgorithmException e) {
                     e.printStackTrace();
                 }
             }
+            socket.close();
         }
     }
 }
