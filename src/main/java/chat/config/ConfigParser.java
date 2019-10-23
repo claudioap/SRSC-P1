@@ -42,6 +42,9 @@ public class ConfigParser {
                 throw new BadConfigException("Port " + port + " isn't a valid port");
             }
             InetAddress address = Inet4Address.getByName(ip);
+            if (!address.isMulticastAddress()) {
+                throw new RuntimeException("Invalid multicast IP " + address);
+            }
             InetSocketAddress socketAddress = new InetSocketAddress(address, port);
             String content = match.group("content");
             Matcher innerMatch = tagPattern.matcher(content);

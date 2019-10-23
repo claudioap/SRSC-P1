@@ -61,6 +61,11 @@ public class ChatPane extends AnchorPane {
                 break;
             case OTHER:
                 msgGrid.addRow(row, userSymbol, speechBox, placeholder);
+                break;
+            default: // Null
+                Text placeholder2 = new Text("");
+                msgGrid.addRow(row, placeholder2, speechBox, placeholder);
+                break;
         }
         GridPane.setValignment(userSymbol, VPos.TOP);
         GridPane.setHgrow(speechBox, Priority.ALWAYS);

@@ -3,6 +3,7 @@ package controller;
 import chat.Message;
 import chat.config.ChannelConfig;
 import chat.networking.SCMPSocket;
+import javafx.application.Platform;
 import view.ChatPane;
 import view.SpeechAuthor;
 
@@ -41,7 +42,8 @@ public class ChatController {
     }
 
     void deliver(Message message) {
-        // TODO
+        Platform.runLater(() -> chatPane.addMessage(message.getAuthor(), message.getText(), SpeechAuthor.OTHER));
+
     }
 
     public void shutdown() throws InterruptedException {
@@ -49,9 +51,17 @@ public class ChatController {
         inputHandler.join();
     }
 
-    public void sendMessage(String message) {
-        chatPane.addMessage("TODO", message, SpeechAuthor.SELF);
-
+    public void sendMessage(String messageText) {
+        Message message = Message.text(username, messageText);
+        byte[] buffer = new byte[65508];
+        DatagramPacket packet = new DatagramPacket(buffer, buffer.length, channelConfig.getAddress().getAddress(), channelConfig.getAddress().getPort());
+        packet.setData(message.serialize(channelConfig));
+        try {
+            socket.send(packet);
+            chatPane.addMessage(username, messageText, SpeechAuthor.SELF);
+        } catch (IOException e) {
+            chatPane.addMessage(username, "Message failed to send", SpeechAuthor.SELF);
+        }
     }
 
     class InputHandler extends Thread {

@@ -48,18 +48,24 @@ public class SpeechBox extends HBox {
         displayedText.setWrapText(true);
         directionIndicator = new SVGPath();
 
-        if (direction == SpeechAuthor.SELF) {
-            displayedText.setBackground(DEFAULT_SENDER_BACKGROUND);
-            displayedText.setAlignment(Pos.CENTER_RIGHT);
-            directionIndicator.setContent("M10 0 L0 10 L0 0 Z");
-            directionIndicator.setFill(DEFAULT_SENDER_COLOR);
-            configureForSender();
-        } else {
-            displayedText.setBackground(DEFAULT_RECEIVER_BACKGROUND);
-            displayedText.setAlignment(Pos.CENTER_LEFT);
-            directionIndicator.setContent("M0 0 L10 0 L10 10 Z");
-            directionIndicator.setFill(DEFAULT_RECEIVER_COLOR);
-            configureForReceiver();
+
+        switch (direction) {
+            case SELF:
+                displayedText.setBackground(DEFAULT_SENDER_BACKGROUND);
+                displayedText.setAlignment(Pos.CENTER_RIGHT);
+                directionIndicator.setContent("M10 0 L0 10 L0 0 Z");
+                directionIndicator.setFill(DEFAULT_SENDER_COLOR);
+                configureForSender();
+                break;
+            case OTHER:
+                displayedText.setBackground(DEFAULT_RECEIVER_BACKGROUND);
+                displayedText.setAlignment(Pos.CENTER_LEFT);
+                directionIndicator.setContent("M0 0 L10 0 L10 10 Z");
+                directionIndicator.setFill(DEFAULT_RECEIVER_COLOR);
+                configureForReceiver();
+                break;
+            default:
+                displayedText.setAlignment(Pos.CENTER);
         }
     }
 

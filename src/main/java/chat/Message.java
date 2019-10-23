@@ -34,23 +34,40 @@ public class Message {
         return message;
     }
 
-    public byte[] serialize(ChannelConfig config) throws IOException {
+    public String getAuthor() {
+        return author;
+    }
+
+    public MessageType getType() {
+        return type;
+    }
+
+    public String getText() {
+        return text;
+    }
+
+    public byte[] serialize(ChannelConfig config) {
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
         DataOutputStream dataStream = new DataOutputStream(byteStream);
-        dataStream.writeUTF(author);
-        dataStream.writeInt(0); // TODO nonce
-        dataStream.writeInt(type.code);
-        if (type == MessageType.TEXT) {
-            dataStream.writeUTF(text);
+        try {
+            dataStream.writeUTF(author);
+            dataStream.writeInt(0); // TODO nonce
+            dataStream.writeInt(type.code);
+            if (type == MessageType.TEXT) {
+                dataStream.writeUTF(text);
+            }
+            byte[] message = byteStream.toByteArray();
+            MessageDigest digest = config.getDigest();
+            digest.reset();
+            digest.update(message);
+            byte[] integrityCheck = digest.digest();
+            dataStream.writeUTF(config.getIntegrityHash());
+            dataStream.write(integrityCheck);
+            dataStream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException();
         }
-        byte[] message = byteStream.toByteArray();
-        MessageDigest digest = config.getDigest();
-        digest.reset();
-        digest.update(message);
-        byte[] integrityCheck = digest.digest();
-        dataStream.writeUTF(config.getIntegrityHash());
-        dataStream.write(integrityCheck);
-        dataStream.close();
         return byteStream.toByteArray();
     }
 

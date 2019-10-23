@@ -19,7 +19,7 @@ public class SCMPSocket extends MulticastSocket {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     };
-    private static IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
+    private IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
     private ChannelConfig channelConfig;
 
     public SCMPSocket(ChannelConfig channelConfig) throws IOException {
@@ -33,9 +33,20 @@ public class SCMPSocket extends MulticastSocket {
         byte[] payload;
         try {
             payload = encode(packet.getData());
+            packet.setLength(payload.length);
             packet.setData(payload);
-            send(packet);
-        } catch (Exception e) {
+            super.send(packet);
+        } catch (InvalidKeyException e) {
+            System.out.println(2);
+            e.printStackTrace();
+        } catch (InvalidAlgorithmParameterException e) {
+            System.out.println(3);
+            e.printStackTrace();
+        } catch (IllegalBlockSizeException e) {
+            System.out.println(4);
+            e.printStackTrace();
+        } catch (BadPaddingException e) {
+            System.out.println(5);
             e.printStackTrace();
         }
     }
@@ -69,7 +80,7 @@ public class SCMPSocket extends MulticastSocket {
         dataStream.writeUTF(channelConfig.getMacAlgorithm());
 
         //Payload
-        byte[] cipherText = SecureOp.encrypt(channelConfig.getCipher(), plainText, channelConfig.getSymmetricKey(), ivSpec);
+        byte[] cipherText = SecureOp.encrypt(channelConfig.getCipher(), plainText, channelConfig.getSymmetricKey(), null);
         dataStream.writeInt(cipherText.length);
         dataStream.write(cipherText);
 
@@ -119,6 +130,6 @@ public class SCMPSocket extends MulticastSocket {
             throw new TamperedException();
         }
 
-        return SecureOp.decrypt(cipher, cipherText, channelConfig.getSymmetricKey(), ivSpec);
+        return SecureOp.decrypt(cipher, cipherText, channelConfig.getSymmetricKey(), null);
     }
 }

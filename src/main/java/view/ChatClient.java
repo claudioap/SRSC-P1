@@ -2,9 +2,6 @@ package view;
 
 import controller.AppController;
 import javafx.application.Application;
-import javafx.beans.value.ChangeListener;
-import javafx.beans.value.ObservableValue;
-import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
@@ -17,20 +14,14 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.util.Enumeration;
-import java.util.Iterator;
 import java.util.Optional;
 
 public class ChatClient extends Application {
     protected AppController controller;
     protected Scene scene;
     protected Stage stage;
-    @FXML
     protected TextField sendField;
-    @FXML
     protected Button sendBtn;
-    @FXML
     protected TabPane tabPane;
 
 

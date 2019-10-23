@@ -2,7 +2,6 @@ package chat;
 
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
-import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -20,7 +19,11 @@ public class SecureOp {
     public static byte[] encrypt(Cipher cipher, byte[] plainText, Key sessionKey, IvParameterSpec ivSpec)
             throws InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException,
             IllegalBlockSizeException {
-        cipher.init(Cipher.ENCRYPT_MODE, sessionKey, ivSpec);
+        if (ivSpec == null) {
+            cipher.init(Cipher.ENCRYPT_MODE, sessionKey);
+        } else {
+            cipher.init(Cipher.ENCRYPT_MODE, sessionKey, ivSpec);
+        }
         cipher.update(plainText);
         return cipher.doFinal();
     }
@@ -33,9 +36,12 @@ public class SecureOp {
      */
     public static byte[] decrypt(Cipher cipher, byte[] cipherText, Key sessionKey, IvParameterSpec ivSpec) {
         try {
-            cipher.init(Cipher.DECRYPT_MODE, sessionKey, ivSpec);
+            if (ivSpec == null) {
+                cipher.init(Cipher.DECRYPT_MODE, sessionKey);
+            } else {
+                cipher.init(Cipher.DECRYPT_MODE, sessionKey, ivSpec);
+            }
             cipher.update(cipherText);
-
             return cipher.doFinal();
         } catch (InvalidAlgorithmParameterException | InvalidKeyException | BadPaddingException | IllegalBlockSizeException e) {
             e.printStackTrace();
