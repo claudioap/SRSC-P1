@@ -114,9 +114,9 @@ public class ChatController {
         public void run() {
             super.run();
             byte[] buffer = new byte[65508];
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
             while (!stopFlag) {
                 try {
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                     socket.receive(packet);
                     deliver(Message.deserialize(packet.getData(), channelConfig));
                 } catch (InterruptedIOException e) {

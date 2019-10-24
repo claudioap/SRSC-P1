@@ -4,6 +4,7 @@ import chat.networking.TamperedException;
 
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
+import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -18,7 +19,7 @@ public class SecureOp {
      * @param plainText Message
      * @return Ciphertext
      */
-    public static byte[] encrypt(Cipher cipher, byte[] plainText, Key sessionKey, IvParameterSpec ivSpec)
+    public static byte[] encrypt(Cipher cipher, ByteBuffer plainText, Key sessionKey, IvParameterSpec ivSpec)
             throws InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException,
             IllegalBlockSizeException {
         if (ivSpec == null) {
@@ -26,8 +27,14 @@ public class SecureOp {
         } else {
             cipher.init(Cipher.ENCRYPT_MODE, sessionKey, ivSpec);
         }
-        cipher.update(plainText);
-        return cipher.doFinal();
+        ByteBuffer cipherText = ByteBuffer.allocate(cipher.getOutputSize(plainText.capacity()));
+        try {
+            cipher.update(plainText, cipherText);
+            cipher.doFinal(plainText, cipherText);
+        } catch (ShortBufferException e) {
+            throw new RuntimeException();
+        }
+        return cipherText.array();
     }
 
     /**
@@ -36,16 +43,19 @@ public class SecureOp {
      * @param cipherText Message
      * @return Plaintext
      */
-    public static byte[] decrypt(Cipher cipher, byte[] cipherText, Key sessionKey, IvParameterSpec ivSpec) {
+    public static byte[] decrypt(Cipher cipher, ByteBuffer cipherText, Key sessionKey, IvParameterSpec ivSpec) {
         try {
             if (ivSpec == null) {
                 cipher.init(Cipher.DECRYPT_MODE, sessionKey);
             } else {
                 cipher.init(Cipher.DECRYPT_MODE, sessionKey, ivSpec);
             }
-            cipher.update(cipherText);
-            return cipher.doFinal();
-        } catch (InvalidAlgorithmParameterException | InvalidKeyException | BadPaddingException | IllegalBlockSizeException e) {
+
+            ByteBuffer plainText = ByteBuffer.allocate(cipher.getOutputSize(cipherText.capacity()));
+            cipher.update(cipherText, plainText);
+            cipher.doFinal(cipherText, plainText);
+            return plainText.array();
+        } catch (InvalidAlgorithmParameterException | InvalidKeyException | BadPaddingException | IllegalBlockSizeException | ShortBufferException e) {
             e.printStackTrace();
             throw new RuntimeException();
         }
