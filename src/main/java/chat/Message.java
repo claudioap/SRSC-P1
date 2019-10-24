@@ -118,7 +118,7 @@ public class Message {
             this.code = code;
         }
 
-        static MessageType fromCode(int code) {
+        public static MessageType fromCode(int code) {
             switch (code) {
                 case 0:
                     return JOIN;

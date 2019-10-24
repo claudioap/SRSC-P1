@@ -11,6 +11,17 @@ public class UserSymbol extends Canvas {
         gc.setFill(Color.DARKBLUE);
         gc.fillOval(0, 0, 40, 40);
         gc.setFill(Color.WHITESMOKE);
-        gc.fillText(name.substring(0, 3), 5, 25);
+        String[] words = name.split(" ");
+        String text;
+        if (words.length == 1) {
+            if (name.length() < 3) {
+                text = name;
+            } else {
+                text = name.substring(0, 3);
+            }
+        } else {
+            text = "" + words[0].charAt(0) + words[words.length - 1].charAt(0);
+        }
+        gc.fillText(text, 5, 25);
     }
 }

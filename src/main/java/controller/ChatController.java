@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.net.DatagramPacket;
 import java.security.NoSuchAlgorithmException;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ChatController {
     SCMPSocket socket;
@@ -21,6 +23,7 @@ public class ChatController {
     private int messageCount = 0; // Used to generate sequence number
     private boolean stopFlag = false;
     private Thread inputHandler;
+    private Set<String> knownPeers = new HashSet<>();
 
     public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 5000;
 
@@ -34,6 +37,8 @@ public class ChatController {
             socket.setSoTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS);
             socket.setTimeToLive(1);
             socket.joinGroup(channelConfig.getAddress().getAddress());
+            Message joinMessage = Message.join(username);
+            sendMessage(joinMessage);
             inputHandler = new InputHandler();
             inputHandler.start();
         } catch (IOException e) {
@@ -41,14 +46,34 @@ public class ChatController {
         }
     }
 
-    void deliver(Message message) {
-        Platform.runLater(() -> chatPane.addMessage(message.getAuthor(), message.getText(), SpeechAuthor.OTHER));
-
-    }
-
-    public void shutdown() throws InterruptedException {
-        stopFlag = true;
-        inputHandler.join();
+    private void deliver(Message message) {
+        switch (message.getType()) {
+            case JOIN:
+                System.out.println("Join arrived");
+                Platform.runLater(() -> {
+                    chatPane.addMessage(message.getAuthor(), message.getAuthor() + " has joined.", null);
+                    chatPane.addUser(message.getAuthor());
+                });
+                break;
+            case LEAVE:
+                System.out.println("Leave arrived");
+                Platform.runLater(() -> {
+                    chatPane.addMessage(message.getAuthor(), message.getAuthor() + " has left.", null);
+                    chatPane.removeUser(message.getAuthor());
+                });
+                break;
+            case TEXT:
+                System.out.println("Text arrived");
+                Platform.runLater(() -> {
+                    if (message.getAuthor().equals(username)) {
+                        Platform.runLater(() -> chatPane.addMessage(message.getAuthor(), message.getText(), SpeechAuthor.SELF));
+                    } else {
+                        Platform.runLater(() -> chatPane.addMessage(message.getAuthor(), message.getText(), SpeechAuthor.OTHER));
+                    }
+                    chatPane.addUser(message.getAuthor());
+                });
+                break;
+        }
     }
 
     public void sendMessage(String messageText) {
@@ -58,10 +83,30 @@ public class ChatController {
         packet.setData(message.serialize(channelConfig));
         try {
             socket.send(packet);
-            chatPane.addMessage(username, messageText, SpeechAuthor.SELF);
         } catch (IOException e) {
             chatPane.addMessage(username, "Message failed to send", SpeechAuthor.SELF);
         }
+    }
+
+    private void sendMessage(Message message) throws IOException {
+        byte[] payload = message.serialize(channelConfig);
+        byte[] buffer = new byte[65508];
+        DatagramPacket packet = new DatagramPacket(
+                buffer,
+                buffer.length,
+                channelConfig.getAddress().getAddress(),
+                channelConfig.getAddress().getPort());
+
+        packet.setData(payload);
+        packet.setLength(payload.length);
+        socket.send(packet);
+    }
+
+    public void shutdown() throws InterruptedException, IOException {
+        stopFlag = true;
+        Message leaveMessage = Message.leave(username);
+        sendMessage(leaveMessage);
+        inputHandler.join();
     }
 
     class InputHandler extends Thread {
@@ -72,10 +117,8 @@ public class ChatController {
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
             while (!stopFlag) {
                 try {
-                    packet.setLength(buffer.length);
                     socket.receive(packet);
                     deliver(Message.deserialize(packet.getData(), channelConfig));
-
                 } catch (InterruptedIOException e) {
                     // Timeout used to periodically check stop flag
                 } catch (IOException | NoSuchAlgorithmException e) {

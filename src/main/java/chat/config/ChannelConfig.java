@@ -29,6 +29,7 @@ public class ChannelConfig {
     protected Cipher cipher;
     protected Mac mac;
     protected MessageDigest digest;
+    protected String hashedIdentifier;
 
     public InetSocketAddress getAddress() {
         return address;
@@ -66,7 +67,7 @@ public class ChannelConfig {
         return integrityHash;
     }
 
-    public void loadAlgorithms() throws NoSuchAlgorithmException, NoSuchPaddingException, MissingFieldException {
+    void loadAlgorithms() throws NoSuchAlgorithmException, NoSuchPaddingException, MissingFieldException {
         if (chatID == null) {
             throw new MissingFieldException("chatID is missing");
         }
@@ -133,14 +134,17 @@ public class ChannelConfig {
                 "MACKS=" + macKeySize + ";";
     }
 
-    public String hashedIdentifier() {
-        try {
-            return SecureOp.bytesToHex(
-                    SecureOp.calculateHash(
-                            MessageDigest.getInstance("SHA-1"),
-                            getChatID().getBytes()));
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException();
+    public String getHashedIdentifier() {
+        if(hashedIdentifier == null){
+            try {
+                hashedIdentifier = SecureOp.bytesToHex(
+                        SecureOp.calculateHash(
+                                MessageDigest.getInstance("SHA-1"),
+                                getChatID().getBytes()));
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException();
+            }
         }
+        return hashedIdentifier;
     }
 }

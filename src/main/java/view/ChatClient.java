@@ -44,6 +44,11 @@ public class ChatClient extends Application {
         stage.show();
     }
 
+    @Override
+    public void stop(){
+        controller.shutdown();
+    }
+
     public void addChatPane(String tabId, String title, ChatPane chatPane) {
         Tab tab = new Tab();
         tab.setId(tabId);

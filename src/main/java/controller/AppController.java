@@ -30,26 +30,26 @@ public class AppController {
         keyHandler = new EzKeyStore(new File("./conf/keystore"), password);
         try {
             for (ChannelConfig config : ConfigParser.from(new File("./conf/SMCP.conf"))) {
-                SecretKey symmetric = keyHandler.getKey(config.hashedIdentifier() + "-key");
+                SecretKey symmetric = keyHandler.getKey(config.getHashedIdentifier() + "-key");
                 if (symmetric == null) {
                     System.out.println("Generating symmetric key");
                     symmetric = EzKeyStore.generateKey(config.getSymmetricAlgorithm(), config.getSymmetricKeySize());
-                    keyHandler.storeKey(config.hashedIdentifier() + "-key", symmetric);
+                    keyHandler.storeKey(config.getHashedIdentifier() + "-key", symmetric);
                 }
-                SecretKey mac = keyHandler.getKey(config.hashedIdentifier() + "-mac");
+                SecretKey mac = keyHandler.getKey(config.getHashedIdentifier() + "-mac");
                 if (mac == null) {
                     System.out.println("Generating mac key");
                     mac = EzKeyStore.generateKey(config.getMacAlgorithm(), config.getMacKeySize());
-                    keyHandler.storeKey(config.hashedIdentifier() + "-mac", mac);
+                    keyHandler.storeKey(config.getHashedIdentifier() + "-mac", mac);
                 }
                 config.attachKeys(symmetric, mac);
                 ChatPane chatPane = new ChatPane();
-                view.addChatPane(config.hashedIdentifier(), config.getChatID(), chatPane);
+                view.addChatPane(config.getHashedIdentifier(), config.getChatID(), chatPane);
                 ChatController chatController = new ChatController(this, chatPane, config, username);
                 if (currentChatController == null) {
                     currentChatController = chatController;
                 }
-                chatControllers.put(config.hashedIdentifier(), chatController);
+                chatControllers.put(config.getHashedIdentifier(), chatController);
             }
         } catch (IOException | NoSuchAlgorithmException e) {
             e.printStackTrace();
@@ -67,5 +67,15 @@ public class AppController {
 
     public void changeCurrentChat(String chatHashId) {
         currentChatController = chatControllers.get(chatHashId);
+    }
+
+    public void shutdown() {
+        for (ChatController chatController : chatControllers.values()) {
+            try {
+                chatController.shutdown();
+            } catch (InterruptedException | IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }

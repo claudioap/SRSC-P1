@@ -1,5 +1,7 @@
 package chat;
 
+import chat.networking.TamperedException;
+
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import java.security.InvalidAlgorithmParameterException;
@@ -61,15 +63,11 @@ public class SecureOp {
         return mac.doFinal();
     }
 
-    /**
-     * Checks if an HMAC matches a message digest
-     *
-     * @param data Message
-     * @param hmac HMAC to check against
-     * @return Truth value
-     */
-    public static boolean isValidHMAC(Mac mac, byte[] data, Key key, byte[] hmac) throws InvalidKeyException {
-        return Arrays.equals(calculateHMAC(mac, key, data), hmac);
+    public static void assertValidHMAC(Mac mac, byte[] data, Key key, byte[] expected) throws InvalidKeyException, TamperedException {
+        byte[] hmac = calculateHMAC(mac, key, data);
+        if (!Arrays.equals(expected, hmac)) {
+            throw new TamperedException(hmac, expected);
+        }
     }
 
     /**

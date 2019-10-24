@@ -11,9 +11,9 @@ import java.net.MulticastSocket;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
 public class SCMPSocket extends MulticastSocket {
-    //vId || sID || SMCPmsgType || SAttributes || SizeOfSecurePayload || SecurePayload || FastSecureMCheck
 
     private static byte[] ivBytes = new byte[]{
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -33,20 +33,10 @@ public class SCMPSocket extends MulticastSocket {
         byte[] payload;
         try {
             payload = encode(packet.getData());
-            packet.setLength(payload.length);
             packet.setData(payload);
+            packet.setLength(payload.length);
             super.send(packet);
-        } catch (InvalidKeyException e) {
-            System.out.println(2);
-            e.printStackTrace();
-        } catch (InvalidAlgorithmParameterException e) {
-            System.out.println(3);
-            e.printStackTrace();
-        } catch (IllegalBlockSizeException e) {
-            System.out.println(4);
-            e.printStackTrace();
-        } catch (BadPaddingException e) {
-            System.out.println(5);
+        } catch (InvalidKeyException | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException e) {
             e.printStackTrace();
         }
     }
@@ -54,9 +44,9 @@ public class SCMPSocket extends MulticastSocket {
 
     @Override
     public void receive(DatagramPacket packet) throws IOException {
-        super.receive(packet);
+        byte[] message = Arrays.copyOfRange(packet.getData(), 0, packet.getLength());
         try {
-            byte[] plainText = decode(packet.getData());
+            byte[] plainText = decode(message);
             packet.setData(plainText);
         } catch (TamperedException | NoSuchPaddingException | NoSuchAlgorithmException | InvalidKeyException e) {
             e.printStackTrace();
@@ -67,16 +57,16 @@ public class SCMPSocket extends MulticastSocket {
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
         DataOutputStream dataStream = new DataOutputStream(byteStream);
         dataStream.writeByte(1); // TODO Protocol version
-        dataStream.writeUTF("127:0:0:1:1234"); // TODO Chat session
-        dataStream.writeByte(1); // TODO MessageType
+//        dataStream.writeUTF(channelConfig.getHashedIdentifier()); // TODO Chat session
+//        dataStream.writeByte(1); // TODO MessageType
 
         // SAttributes
         dataStream.writeUTF(channelConfig.getChatID());
-        dataStream.writeUTF("session name"); // TODO
+//        dataStream.writeUTF("session name"); // TODO
         dataStream.writeUTF(channelConfig.getSymmetricAlgorithm());
         dataStream.writeUTF(channelConfig.getMode());
         dataStream.writeUTF(channelConfig.getPaddingAlgorithm());
-        dataStream.writeUTF(channelConfig.getIntegrityHash());
+//        dataStream.writeUTF(channelConfig.getIntegrityHash());
         dataStream.writeUTF(channelConfig.getMacAlgorithm());
 
         //Payload
@@ -86,9 +76,8 @@ public class SCMPSocket extends MulticastSocket {
 
         // Fast hash
         byte[] message = byteStream.toByteArray();
-        byte[] digest = SecureOp.calculateHMAC(channelConfig.getMac(), channelConfig.getMacKey(), message);
-        dataStream.write(digest);
-
+        byte[] authenticityDigest = SecureOp.calculateHMAC(channelConfig.getMac(), channelConfig.getMacKey(), message);
+        dataStream.write(authenticityDigest);
         return byteStream.toByteArray();
     }
 
@@ -96,40 +85,39 @@ public class SCMPSocket extends MulticastSocket {
         ByteArrayInputStream byteStream = new ByteArrayInputStream(message);
         DataInputStream dataStream = new DataInputStream(byteStream);
 
-        dataStream.readByte();
-        String chatSession = dataStream.readUTF();
-        byte messageType = dataStream.readByte();
+        byte protocolVersion = dataStream.readByte();
+//        String chatSession = dataStream.readUTF();
+//        Message.MessageType messageType = Message.MessageType.fromCode(dataStream.readByte());
 
-        if (messageType != 0x01) {
-            // Ó palhaço
-        }
+//        if (messageType != 0x01) {
+//            // Ó palhaço
+//        }
 
         // SAttributes
         String chatID = dataStream.readUTF();
+        if (!chatID.equals(channelConfig.getChatID())) {
+            // Ó palhaço
+        }
         String symmetricAlgorithmName = dataStream.readUTF();
-        String sessionName = dataStream.readUTF();
         String mode = dataStream.readUTF();
         String paddingAlgorithm = dataStream.readUTF();
-        String integrityHash = dataStream.readUTF();
+//        String integrityHash = dataStream.readUTF();
         String macAlgorithm = dataStream.readUTF();
         Cipher cipher = Cipher.getInstance(symmetricAlgorithmName + "/" + mode + "/" + paddingAlgorithm);
-        Mac mac = Mac.getInstance(macAlgorithm);
-        Mac fastMac = Mac.getInstance(integrityHash);
+        Mac authenticityDigest = Mac.getInstance(macAlgorithm);
+//        MessageDigest integrityDigest  = MessageDigest.getInstance(integrityHash);
 
         //Payload
         int cipherTextLength = dataStream.readInt();
         byte[] cipherText = dataStream.readNBytes(cipherTextLength);
 
         // Fast hash
-        byte[] digest = dataStream.readNBytes(fastMac.getMacLength());
+        byte[] hmac = dataStream.readNBytes(authenticityDigest.getMacLength());
         if (dataStream.available() > 0) {
             // Ó palhaço
         }
-
-        if (!SecureOp.isValidHMAC(mac, message, channelConfig.getMacKey(), digest)) {
-            throw new TamperedException();
-        }
-
+        byte[] authenticatedSegment = Arrays.copyOfRange(message, 0, message.length - authenticityDigest.getMacLength());
+        SecureOp.assertValidHMAC(authenticityDigest, authenticatedSegment, channelConfig.getMacKey(), hmac);
         return SecureOp.decrypt(cipher, cipherText, channelConfig.getSymmetricKey(), null);
     }
 }
