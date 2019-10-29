@@ -11,25 +11,41 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public class ChannelConfig {
-    public ChannelConfig(InetSocketAddress address) {
-        this.address = address;
-    }
 
     protected InetSocketAddress address;
     protected String chatID;
-    protected String symmetricAlgorithm;
-    protected Key symmetricKey;
-    protected Integer symmetricKeySize;
+    protected String symAlgorithm;
+    protected Key symKey;
+    protected Integer symKeySize;
     protected String mode;
     protected String paddingAlgorithm;
-    protected String integrityHash;
+    protected String integrityAlgorithm;
     protected String macAlgorithm;
     protected Integer macKeySize;
     protected Key macKey;
     protected Cipher cipher;
     protected Mac mac;
     protected MessageDigest digest;
-    protected String hashedIdentifier;
+    protected boolean hasIV = false;
+
+    private MessageDigest identifierDigest;
+    // Cached fields calculated from identifierDigest
+    protected String chatDigest;
+    protected byte[] chatIDDigest;
+    protected byte[] symAlgorithmDigest;
+    protected byte[] modeDigest;
+    protected byte[] paddingDigest;
+    protected byte[] macDigest;
+    protected byte[] integrityAlgorithmDigest;
+
+    public ChannelConfig(InetSocketAddress address) {
+        try {
+            identifierDigest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available");
+        }
+        this.address = address;
+    }
 
     public InetSocketAddress getAddress() {
         return address;
@@ -39,12 +55,12 @@ public class ChannelConfig {
         return chatID;
     }
 
-    public String getSymmetricAlgorithm() {
-        return symmetricAlgorithm;
+    public String getSymAlgorithm() {
+        return symAlgorithm;
     }
 
-    public Integer getSymmetricKeySize() {
-        return symmetricKeySize;
+    public Integer getSymKeySize() {
+        return symKeySize;
     }
 
     public String getMacAlgorithm() {
@@ -63,18 +79,18 @@ public class ChannelConfig {
         return paddingAlgorithm;
     }
 
-    public String getIntegrityHash() {
-        return integrityHash;
+    public String getIntegrityAlgorithm() {
+        return integrityAlgorithm;
     }
 
     void loadAlgorithms() throws NoSuchAlgorithmException, NoSuchPaddingException, MissingFieldException {
         if (chatID == null) {
             throw new MissingFieldException("chatID is missing");
         }
-        if (symmetricAlgorithm == null) {
+        if (symAlgorithm == null) {
             throw new MissingFieldException("symmetricAlgorithm is missing");
         }
-        if (symmetricKeySize == null) {
+        if (symKeySize == null) {
             throw new MissingFieldException("symmetricKeySize is missing");
         }
         if (mode == null) {
@@ -83,7 +99,7 @@ public class ChannelConfig {
         if (paddingAlgorithm == null) {
             throw new MissingFieldException("paddingAlgorithm is missing");
         }
-        if (integrityHash == null) {
+        if (integrityAlgorithm == null) {
             throw new MissingFieldException("integrityHash is missing");
         }
         if (macAlgorithm == null) {
@@ -92,18 +108,39 @@ public class ChannelConfig {
         if (macKeySize == null) {
             throw new MissingFieldException("macKeySize is missing");
         }
-        cipher = Cipher.getInstance(symmetricAlgorithm + "/" + mode + "/" + paddingAlgorithm);
+        switch (symAlgorithm) {
+            case "AES":
+                cipher = Cipher.getInstance(symAlgorithm + "/" + mode + "/" + paddingAlgorithm);
+                switch (mode) {
+                    case "CTR":
+                        hasIV = true;
+                        break;
+                    case "ECB":
+                        hasIV = false;
+                        break;
+                    default:
+                        throw new RuntimeException("Unsupported mode AES/" + mode);
+                }
+                break;
+            case "Blowfish":
+            case "RC4":
+                cipher = Cipher.getInstance(symAlgorithm);
+                break;
+            default:
+                throw new RuntimeException("Unsupported cipher " + symAlgorithm);
+
+        }
         mac = Mac.getInstance(macAlgorithm);
-        digest = MessageDigest.getInstance(integrityHash);
+        digest = MessageDigest.getInstance(integrityAlgorithm);
     }
 
     public void attachKeys(Key symmetricKey, Key macKey) {
-        this.symmetricKey = symmetricKey;
+        this.symKey = symmetricKey;
         this.macKey = macKey;
     }
 
-    public Key getSymmetricKey() {
-        return symmetricKey;
+    public Key getSymKey() {
+        return symKey;
     }
 
     public Key getMacKey() {
@@ -122,29 +159,65 @@ public class ChannelConfig {
         return digest;
     }
 
+    public boolean hasIV() {
+        return hasIV;
+    }
+
     @Override
     public String toString() {
         return "Addr=" + address + ";" +
                 "SID=" + chatID + ";" +
-                "SymAlg=" + symmetricAlgorithm + ";" +
-                "SymKS=" + symmetricKeySize + ";" +
+                "SymAlg=" + symAlgorithm + ";" +
+                "SymKS=" + symKeySize + ";" +
                 "Mode=" + mode + ";" +
-                "Hash=" + integrityHash + ";" +
+                "Hash=" + integrityAlgorithm + ";" +
                 "MAC=" + macAlgorithm + ";" +
                 "MACKS=" + macKeySize + ";";
     }
 
-    public String getHashedIdentifier() {
-        if(hashedIdentifier == null){
-            try {
-                hashedIdentifier = SecureOp.bytesToHex(
-                        SecureOp.calculateHash(
-                                MessageDigest.getInstance("SHA-1"),
-                                getChatID().getBytes()));
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException();
-            }
+    public byte[] getChatIDDigest() {
+        if (chatIDDigest == null) {
+            chatIDDigest = SecureOp.calculateHash(identifierDigest, getChatID().getBytes());
         }
-        return hashedIdentifier;
+        return chatIDDigest;
+    }
+
+    public String getChatIDDigestString() {
+        return SecureOp.bytesToHex(getChatIDDigest());
+    }
+
+    public byte[] getSymAlgorithmDigest() {
+        if (symAlgorithmDigest == null) {
+            symAlgorithmDigest = SecureOp.calculateHash(identifierDigest, symAlgorithm.getBytes());
+        }
+        return symAlgorithmDigest;
+    }
+
+    public byte[] getModeDigest() {
+        if (modeDigest == null) {
+            modeDigest = SecureOp.calculateHash(identifierDigest, mode.getBytes());
+        }
+        return modeDigest;
+    }
+
+    public byte[] getPaddingDigest() {
+        if (paddingDigest == null) {
+            paddingDigest = SecureOp.calculateHash(identifierDigest, paddingAlgorithm.getBytes());
+        }
+        return paddingDigest;
+    }
+
+    public byte[] getMacDigest() {
+        if (macDigest == null) {
+            macDigest = SecureOp.calculateHash(identifierDigest, macAlgorithm.getBytes());
+        }
+        return macDigest;
+    }
+
+    public byte[] getIntegrityAlgorithmDigest() {
+        if (integrityAlgorithmDigest == null) {
+            integrityAlgorithmDigest = SecureOp.calculateHash(identifierDigest, integrityAlgorithm.getBytes());
+        }
+        return integrityAlgorithmDigest;
     }
 }

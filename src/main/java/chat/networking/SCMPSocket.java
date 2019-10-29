@@ -11,14 +11,16 @@ import java.net.MulticastSocket;
 import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
+import java.security.MessageDigest;
 import java.util.Arrays;
 
 public class SCMPSocket extends MulticastSocket {
 
+    public final static int PROTO_VERSION = 1;
+
     private static byte[] ivBytes = new byte[]{
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+            0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+            0x13, 0x37, 0x13, 0x37, 0x13, 0x37, 0x13, 0x37
     };
     private IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
     private ChannelConfig channelConfig;
@@ -36,14 +38,10 @@ public class SCMPSocket extends MulticastSocket {
             payload = encode(packet.getData());
             packet.setData(payload);
             packet.setLength(payload.length);
-
-            System.out.println("Payload set to " + payload.length);
-            System.out.println("Payload2 set to " + packet.getLength());
+            System.out.println("Sending a packet with length " + packet.getLength());
             super.send(packet);
 
         } catch (InvalidKeyException | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
             e.printStackTrace();
             throw new RuntimeException();
         }
@@ -53,92 +51,175 @@ public class SCMPSocket extends MulticastSocket {
     @Override
     public void receive(DatagramPacket packet) throws IOException {
         super.receive(packet);
-        System.out.println("Payload received " + packet.getLength());
 
         byte[] message = Arrays.copyOfRange(packet.getData(), 0, packet.getLength());
         try {
+            System.out.println("Receiving a packet with length " + message.length);
             byte[] plainText = decode(message);
             packet.setData(plainText);
-        } catch (TamperedException | NoSuchPaddingException | NoSuchAlgorithmException | InvalidKeyException e) {
+        } catch (TamperedException | InvalidKeyException e) {
             e.printStackTrace();
         }
     }
 
     private byte[] encode(byte[] plainText) throws IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, InvalidKeyException, IOException {
+        // TODO nounce
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
         DataOutputStream dataStream = new DataOutputStream(byteStream);
-        dataStream.writeByte(1); // TODO Protocol version
-//        dataStream.writeUTF(channelConfig.getHashedIdentifier()); // TODO Chat session
-//        dataStream.writeByte(1); // TODO MessageType
+        dataStream.writeByte(PROTO_VERSION);
+        dataStream.writeUTF(channelConfig.getAddress().toString());
+        dataStream.writeByte(1); // MessageType, TODO remove, perhaps
 
         // SAttributes
-        dataStream.writeUTF(channelConfig.getChatID());
-//        dataStream.writeUTF("session name"); // TODO
-        dataStream.writeUTF(channelConfig.getSymmetricAlgorithm());
-        dataStream.writeUTF(channelConfig.getMode());
-        dataStream.writeUTF(channelConfig.getPaddingAlgorithm());
-//        dataStream.writeUTF(channelConfig.getIntegrityHash());
-        dataStream.writeUTF(channelConfig.getMacAlgorithm());
+        System.out.println("Attrib size:" + channelConfig.getChatIDDigest().length);
+        dataStream.write(channelConfig.getChatIDDigest());
+        dataStream.write(channelConfig.getSymAlgorithmDigest());
+        dataStream.write(channelConfig.getModeDigest());
+        dataStream.write(channelConfig.getPaddingDigest());
+        dataStream.write(channelConfig.getIntegrityAlgorithmDigest());
+        dataStream.write(channelConfig.getMacDigest());
 
         //Payload
-        byte[] cipherText = SecureOp.encrypt(channelConfig.getCipher(), ByteBuffer.wrap(plainText), channelConfig.getSymmetricKey(), null);
-        System.out.println("S PT " + plainText.length);
-        System.out.println("S CT " + cipherText.length);
+        ByteArrayOutputStream plainTextWithIntegrity = new ByteArrayOutputStream();
+        plainTextWithIntegrity.write(plainText);
+        MessageDigest digest = channelConfig.getDigest();
+        byte[] integrityHash = SecureOp.calculateHash(digest, plainText);
+        System.out.println("Integrity hash: " + SecureOp.bytesToHex(integrityHash));
+        plainTextWithIntegrity.write(integrityHash);
+        byte[] cipherText;
+        if (channelConfig.hasIV()) {
+            cipherText = SecureOp.encrypt(
+                    channelConfig.getCipher(),
+                    ByteBuffer.wrap(plainTextWithIntegrity.toByteArray()),
+                    channelConfig.getSymKey(),
+                    ivSpec);
+        } else {
+            cipherText = SecureOp.encrypt(
+                    channelConfig.getCipher(),
+                    ByteBuffer.wrap(plainTextWithIntegrity.toByteArray()),
+                    channelConfig.getSymKey(),
+                    null);
+        }
+        System.out.println("Plain text + int: " + SecureOp.bytesToHex(plainTextWithIntegrity.toByteArray()));
         dataStream.writeInt(cipherText.length);
+        System.out.println("CT l:" + cipherText.length);
         dataStream.write(cipherText);
+        System.out.println("Ciphertext: " + SecureOp.bytesToHex(cipherText));
 
         // Fast hash
         byte[] message = byteStream.toByteArray();
-        byte[] authenticityDigest = SecureOp.calculateHMAC(channelConfig.getMac(), channelConfig.getMacKey(), message);
-        dataStream.write(authenticityDigest);
-        byte[] payload = byteStream.toByteArray();
-        System.out.println("S PL " + payload.length);
+        byte[] authenticityHMAC = SecureOp.calculateHMAC(channelConfig.getMac(), channelConfig.getMacKey(), message);
+        dataStream.write(authenticityHMAC);
+        System.out.println("Fast hash: " + SecureOp.bytesToHex(authenticityHMAC));
 
-        return payload;
+        byte[] result = byteStream.toByteArray();
+        System.out.println("Sent: " + result.length);
+        return result;
     }
 
-    private byte[] decode(byte[] message) throws TamperedException, InvalidKeyException, IOException, NoSuchAlgorithmException, NoSuchPaddingException {
+    private byte[] decode(byte[] message) throws TamperedException, InvalidKeyException, IOException {
+        System.out.println(SecureOp.bytesToHex(message));
+        System.out.println("Received: " + message.length);
         ByteArrayInputStream byteStream = new ByteArrayInputStream(message);
         DataInputStream dataStream = new DataInputStream(byteStream);
 
-        System.out.println("R PL " + message.length);
-
         byte protocolVersion = dataStream.readByte();
-//        String chatSession = dataStream.readUTF();
-//        Message.MessageType messageType = Message.MessageType.fromCode(dataStream.readByte());
+        if (protocolVersion > PROTO_VERSION) {
+            throw new UnsupportedOperationException("Cannot handle protocol version " + protocolVersion);
+        }
+        String chatAddress = dataStream.readUTF();
+        if (!chatAddress.equals(channelConfig.getAddress().toString())) {
+            throw new UnsupportedOperationException("Chat address mismatch (" + chatAddress + ")");
+        }
 
-//        if (messageType != 0x01) {
-//            // Ó palhaço
-//        }
+        byte messageType = dataStream.readByte();
+        if (messageType != 0x01) {
+            throw new UnsupportedOperationException("Unknown message type (" + messageType + ")");
+        }
+        System.out.println(byteStream.available());
 
         // SAttributes
-        String chatID = dataStream.readUTF();
-        if (!chatID.equals(channelConfig.getChatID())) {
-            // Ó palhaço
+        int attributeLength = channelConfig.getChatIDDigest().length;
+        if (dataStream.available() < 6 * attributeLength + Integer.SIZE / Byte.SIZE) {
+            throw new RuntimeException("Missing SAttributes");
         }
-        String symmetricAlgorithmName = dataStream.readUTF();
-        String mode = dataStream.readUTF();
-        String paddingAlgorithm = dataStream.readUTF();
-//        String integrityHash = dataStream.readUTF();
-        String macAlgorithm = dataStream.readUTF();
-        Cipher cipher = Cipher.getInstance(symmetricAlgorithmName + "/" + mode + "/" + paddingAlgorithm);
-        Mac authenticityDigest = Mac.getInstance(macAlgorithm);
-//        MessageDigest integrityDigest  = MessageDigest.getInstance(integrityHash);
+        byte[] attribute = dataStream.readNBytes(attributeLength);
+        if (!Arrays.equals(attribute, channelConfig.getChatIDDigest())) {
+            throw new RuntimeException("Mismatched channel ID");
+        }
+        if (!Arrays.equals(dataStream.readNBytes(attributeLength), channelConfig.getSymAlgorithmDigest())) {
+            throw new RuntimeException("Mismatched cipher");
+        }
+        if (!Arrays.equals(dataStream.readNBytes(attributeLength), channelConfig.getModeDigest())) {
+            throw new RuntimeException("Mismatched mode");
+        }
+        if (!Arrays.equals(dataStream.readNBytes(attributeLength), channelConfig.getPaddingDigest())) {
+            throw new RuntimeException("Mismatched padding");
+        }
+        if (!Arrays.equals(dataStream.readNBytes(attributeLength), channelConfig.getIntegrityAlgorithmDigest())) {
+            throw new RuntimeException("Mismatched integrity algorithm");
+        }
+
+        attribute = dataStream.readNBytes(attributeLength);
+        if (!Arrays.equals(attribute, channelConfig.getMacDigest())) {
+            throw new RuntimeException("Mismatched mac algorithm");
+        }
 
         //Payload
         int cipherTextLength = dataStream.readInt();
+        System.out.println("CT l: " + cipherTextLength);
+        if (dataStream.available() < cipherTextLength + Integer.SIZE / Byte.SIZE) {
+            throw new RuntimeException("Missing payload");
+        }
         byte[] cipherText = dataStream.readNBytes(cipherTextLength);
+        System.out.println("Ciphertext: " + SecureOp.bytesToHex(cipherText));
 
         // Fast hash
-        byte[] hmac = dataStream.readNBytes(authenticityDigest.getMacLength());
-        if (dataStream.available() > 0) {
-            // Ó palhaço
+        Mac mac = channelConfig.getMac();
+        if (dataStream.available() < mac.getMacLength()) {
+            throw new RuntimeException("Missing fast hash check");
         }
-        byte[] authenticatedSegment = Arrays.copyOfRange(message, 0, message.length - authenticityDigest.getMacLength());
-        SecureOp.assertValidHMAC(authenticityDigest, authenticatedSegment, channelConfig.getMacKey(), hmac);
-        byte[] plainText = SecureOp.decrypt(cipher, ByteBuffer.wrap(cipherText), channelConfig.getSymmetricKey(), null);
-        System.out.println("R CT " + cipherText.length);
-        System.out.println("R PT " + plainText.length);
+        byte[] hmac = dataStream.readNBytes(mac.getMacLength());
+        if (dataStream.available() > 0) {
+            throw new RuntimeException("Too much content");
+        }
+        System.out.println(byteStream.available());
+
+        // Decryption
+        byte[] authenticatedSegment = Arrays.copyOfRange(message, 0, message.length - mac.getMacLength());
+        SecureOp.assertValidHMAC(mac, authenticatedSegment, channelConfig.getMacKey(), hmac);
+        Cipher cipher = channelConfig.getCipher();
+        byte[] plainTextAndIntegrity;
+        if (channelConfig.hasIV()) {
+            plainTextAndIntegrity = SecureOp.decrypt(
+                    cipher,
+                    ByteBuffer.wrap(cipherText),
+                    channelConfig.getSymKey(),
+                    ivSpec);
+        } else {
+            plainTextAndIntegrity = SecureOp.decrypt(
+                    cipher,
+                    ByteBuffer.wrap(cipherText),
+                    channelConfig.getSymKey(),
+                    null);
+        }
+
+
+        // Integrity check
+        MessageDigest integrityDigestImpl = channelConfig.getDigest();
+
+        System.out.println("Plain text + int: " + SecureOp.bytesToHex(plainTextAndIntegrity));
+        byte[] plainText = Arrays.copyOfRange(
+                plainTextAndIntegrity,
+                0,
+                plainTextAndIntegrity.length - integrityDigestImpl.getDigestLength());
+        byte[] integrityDigest = Arrays.copyOfRange(
+                plainTextAndIntegrity,
+                plainText.length,
+                plainTextAndIntegrity.length);
+
+        System.out.println("Integrity hash: " + SecureOp.bytesToHex(integrityDigest));
+        SecureOp.assertValidHash(integrityDigestImpl, plainText, integrityDigest);
         return plainText;
     }
 }

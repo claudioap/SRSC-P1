@@ -1,11 +1,6 @@
 package chat;
 
-import chat.config.ChannelConfig;
-
 import java.io.*;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
 
 public class Message {
     private String author;
@@ -46,23 +41,15 @@ public class Message {
         return text;
     }
 
-    public byte[] serialize(ChannelConfig config) {
+    public byte[] serialize() {
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
         DataOutputStream dataStream = new DataOutputStream(byteStream);
         try {
             dataStream.writeUTF(author);
-            dataStream.writeInt(0); // TODO nonce
             dataStream.writeInt(type.code);
             if (type == MessageType.TEXT) {
                 dataStream.writeUTF(text);
             }
-            byte[] message = byteStream.toByteArray();
-            MessageDigest digest = config.getDigest();
-            digest.reset();
-            digest.update(message);
-            byte[] integrityCheck = digest.digest();
-            dataStream.writeUTF(config.getIntegrityHash());
-            dataStream.write(integrityCheck);
             dataStream.close();
         } catch (IOException e) {
             e.printStackTrace();
@@ -71,32 +58,10 @@ public class Message {
         return byteStream.toByteArray();
     }
 
-    public static Message deserialize(byte[] data, ChannelConfig channelConfig) throws IOException, NoSuchAlgorithmException {
+    public static Message deserialize(byte[] data) throws IOException {
         DataInputStream inputStream = new DataInputStream(new ByteArrayInputStream(data, 0, data.length));
         String author = inputStream.readUTF();
-        int nounce = inputStream.readInt();
         MessageType type = MessageType.fromCode(inputStream.readInt());
-
-        String text = null;
-        switch (type) {
-            case JOIN:
-            case LEAVE:
-                break;
-            default:
-                text = inputStream.readUTF();
-        }
-
-
-        String digestName = inputStream.readUTF();
-        MessageDigest digest = MessageDigest.getInstance(digestName);
-        byte[] hash = inputStream.readNBytes(digest.getDigestLength());
-        if (inputStream.available() > 0) {
-            // Ó palhaço
-        }
-        byte[] hashedData = Arrays.copyOfRange(data, 0, data.length - hash.length);
-        if (!SecureOp.isValidHash(digest, hashedData, hash)) {
-            // Ó palhaço
-        }
 
         switch (type) {
             case JOIN:
@@ -104,9 +69,10 @@ public class Message {
             case LEAVE:
                 return leave(author);
             case TEXT:
+                String text = inputStream.readUTF();
                 return text(author, text);
         }
-        throw new RuntimeException("Ó palhaço");
+        throw new RuntimeException("Unable to deserialize");
     }
 
     public enum MessageType {

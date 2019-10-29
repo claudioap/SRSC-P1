@@ -1,8 +1,5 @@
 package chat.config;
 
-import chat.config.BadConfigException;
-import chat.config.ChannelConfig;
-
 import javax.crypto.NoSuchPaddingException;
 import java.io.*;
 import java.net.Inet4Address;
@@ -56,10 +53,10 @@ public class ConfigParser {
                             channelConfig.chatID = innerMatch.group("content");
                             break;
                         case "SEA":
-                            channelConfig.symmetricAlgorithm = innerMatch.group("content");
+                            channelConfig.symAlgorithm = innerMatch.group("content");
                             break;
                         case "SEAKS":
-                            channelConfig.symmetricKeySize = Integer.parseInt(innerMatch.group("content"));
+                            channelConfig.symKeySize = Integer.parseInt(innerMatch.group("content"));
                             break;
                         case "MODE":
                             channelConfig.mode = innerMatch.group("content");
@@ -68,7 +65,7 @@ public class ConfigParser {
                             channelConfig.paddingAlgorithm = innerMatch.group("content");
                             break;
                         case "INTHASH":
-                            channelConfig.integrityHash = innerMatch.group("content");
+                            channelConfig.integrityAlgorithm = innerMatch.group("content");
                             break;
                         case "MAC":
                             channelConfig.macAlgorithm = innerMatch.group("content");
@@ -77,7 +74,7 @@ public class ConfigParser {
                             channelConfig.macKeySize = Integer.parseInt(innerMatch.group("content"));
                             break;
                         default:
-                            // TODO Ó palhaço!
+                            throw new RuntimeException("Unrecognised field " + innerMatch.group("tag"));
                     }
                 } catch (NumberFormatException e) {
                     throw new BadConfigException("Unable to parse integer in the configuration of " + socketAddress);

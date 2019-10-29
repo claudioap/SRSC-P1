@@ -10,7 +10,6 @@ import view.SpeechAuthor;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.net.DatagramPacket;
-import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -80,7 +79,7 @@ public class ChatController {
         Message message = Message.text(username, messageText);
         byte[] buffer = new byte[65508];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length, channelConfig.getAddress().getAddress(), channelConfig.getAddress().getPort());
-        packet.setData(message.serialize(channelConfig));
+        packet.setData(message.serialize());
         try {
             socket.send(packet);
         } catch (IOException e) {
@@ -89,7 +88,7 @@ public class ChatController {
     }
 
     private void sendMessage(Message message) throws IOException {
-        byte[] payload = message.serialize(channelConfig);
+        byte[] payload = message.serialize();
         byte[] buffer = new byte[65508];
         DatagramPacket packet = new DatagramPacket(
                 buffer,
@@ -118,10 +117,10 @@ public class ChatController {
                 try {
                     DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                     socket.receive(packet);
-                    deliver(Message.deserialize(packet.getData(), channelConfig));
+                    deliver(Message.deserialize(packet.getData()));
                 } catch (InterruptedIOException e) {
                     // Timeout used to periodically check stop flag
-                } catch (IOException | NoSuchAlgorithmException e) {
+                } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
