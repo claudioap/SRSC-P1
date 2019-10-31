@@ -86,7 +86,7 @@ public class ChatClient extends Application {
         headerContent.getChildren().add(imageView);
         dialog.setHeaderText(" ");
         dialog.setGraphic(imageView);
-        ButtonType okType = new ButtonType("Falar com um agente");
+        ButtonType okType = new ButtonType("Desbloquear keystore");
         dialog.getDialogPane().getButtonTypes().add(okType);
 
         PasswordField pwd = new PasswordField();
@@ -95,13 +95,13 @@ public class ChatClient extends Application {
         VBox vContent = new VBox();
         image = new Image(getClass().getResource("banks.png").toString());
         imageView = new ImageView(image);
-        imageView.setFitHeight(40);
+        imageView.setFitHeight(1);
         imageView.setPreserveRatio(true);
 
         HBox content = new HBox();
         content.setAlignment(Pos.CENTER_LEFT);
         content.setSpacing(10);
-        content.getChildren().addAll(new Label("Insira o pin para corrigir:"), pwd, imageView);
+        content.getChildren().addAll(new Label("Insira a chave da keystore:"), pwd, imageView);
 
         vContent.getChildren().add(content);
         dialog.getDialogPane().setContent(vContent);

@@ -1,0 +1,68 @@
+\documentclass[runningheads]{llncs}
+\usepackage{bytefield}
+
+% Title Page
+\title{SRSC - P1}
+\author{Cláudio Pereira(51717) \and Diogo Cruz(57058)}
+\institute{Faculdade de Ciências e Tecnologia\\Universidade Nova de Lisboa}
+
+
+\begin{document}
+\maketitle
+\pagebreak
+\section{Introduction}
+In this work we developed a multicast based secure messaging protocol (SMCP) and subsequent demonstration application.
+
+Our application was built based on the teacher sample code, but due to a port to JavaFX it ended up diverging. Albeit the same methods are present, they call a different library and are split across several files. Our application is structured with an view-controller structure, as JavaFX requires.
+
+For additional ease of development and dependency management, we used Maven. Maven is totally optional as it is only used to fetch JavaFX and make it available for the code to compile. If JavaFX is installed system-wide it becomes unneeded.
+
+\section{Build}
+To build the application, the Maven command \texttt{mvn clean javafx:run} automatically resolves the JavaFX dependencies. If JavaFX is installed system wide a regular \texttt{javac} build will work assuming that JavaFX is in the classpath.
+
+The main entry point is \texttt{view.ChatApplication}.
+
+\section{JAR trustworthiness}
+To ensure the trustworthiness of the resulting program, we signed the JAR using a trust store. Two different JAR files are present in the repository, one of them unsigned and the other signed with a sample trust store.
+
+The sign command is:
+\texttt{jarsigner -storetype JCEKS  -storepass " " -keystore ./truststore P1.jar sign-cert}
+
+To verify the signature one can issue the command:
+\texttt{jarsigner --verify -storetype JCEKS  -storepass " " -keystore ./truststore P1.jar sign-cert}
+
+Both commands must be issued with the jar folder as the working directory. The  demo truststore password is " " (a space).
+\clearpage
+\section{Final SMCP protocol format}
+SMCP messages have the following format:
+$$vID||sID||SMCPMsgType||SAttributes||SPayloadLen||SPayload||FastSMCheck$$
+Where the fields are:
+\begin{description}
+	\item[vID] Protocol version.
+	\item[sID] Session ID (the ip:port pair).
+	\item[SMCPMsgType] Type of SMCP message.
+	\item[SAttributes] Endpoint security parameters for validation with the format:
+	$$sID||sName||Cipher||Mode||Padding||IntHash||FastHMAC$$
+	Each attribute is the \textit{SHA-256} of the attribute string representation.
+	\begin{description}
+		\item[sID]
+		\item[sName] The plaintext name of the chat session.
+		\item[Cipher] The cipher algorithm (eg. AES, DES, ...)
+		\item[Mode] The cipher mode (eg. ECB, CBS, ...).
+		\item[Padding] The employed padding scheme (eg. PKCS\#5)
+		\item[IntHash] The integrity hash algorithm, used in \textit{IntegrityCheck}.
+		\item[FastHMAC] The authenticity HMAC algorithm, used in \textit{FastSMCheck}.\\
+	\end{description}
+	\item[SPayloadLen] Integer with the payload length.
+	\item[SPayload] Encrypted data, defined as follows:
+	$$ Message||SeqNr||Nounce||IntegrityCheck$$
+	\begin{description}
+		\item[Message] The plaintext message serialized.
+		\item[SeqNr] The sequence number of this message.
+		\item[Nounce] Randomly generated nouce to prevent replay attacks.
+		\item[IntegrityCheck] An (ideally strong) hash that ensures \textit{Message} integrity.\\
+	\end{description}
+	\item[FastSMCheck] (Ideally performant) HMAC that allows for a fast message authenticity check, to distinguish forged messages.
+\end{description}
+
+\end{document}          

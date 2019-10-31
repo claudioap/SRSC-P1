@@ -13,6 +13,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Random;
 
 public class SCMPSocket extends MulticastSocket {
 
@@ -24,6 +25,8 @@ public class SCMPSocket extends MulticastSocket {
     };
     private IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
     private ChannelConfig channelConfig;
+    private int sequenceNumber = 0;
+    private Random rng = new Random();
 
     public SCMPSocket(ChannelConfig channelConfig) throws IOException {
         super(channelConfig.getAddress().getPort());
@@ -38,7 +41,6 @@ public class SCMPSocket extends MulticastSocket {
             payload = encode(packet.getData());
             packet.setData(payload);
             packet.setLength(payload.length);
-            System.out.println("Sending a packet with length " + packet.getLength());
             super.send(packet);
 
         } catch (InvalidKeyException | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException e) {
@@ -51,10 +53,8 @@ public class SCMPSocket extends MulticastSocket {
     @Override
     public void receive(DatagramPacket packet) throws IOException {
         super.receive(packet);
-
         byte[] message = Arrays.copyOfRange(packet.getData(), 0, packet.getLength());
         try {
-            System.out.println("Receiving a packet with length " + message.length);
             byte[] plainText = decode(message);
             packet.setData(plainText);
         } catch (TamperedException | InvalidKeyException e) {
@@ -71,7 +71,6 @@ public class SCMPSocket extends MulticastSocket {
         dataStream.writeByte(1); // MessageType, TODO remove, perhaps
 
         // SAttributes
-        System.out.println("Attrib size:" + channelConfig.getChatIDDigest().length);
         dataStream.write(channelConfig.getChatIDDigest());
         dataStream.write(channelConfig.getSymAlgorithmDigest());
         dataStream.write(channelConfig.getModeDigest());
@@ -80,11 +79,12 @@ public class SCMPSocket extends MulticastSocket {
         dataStream.write(channelConfig.getMacDigest());
 
         //Payload
+        dataStream.writeInt(sequenceNumber++);
+        dataStream.writeInt(rng.nextInt(Integer.MAX_VALUE));
         ByteArrayOutputStream plainTextWithIntegrity = new ByteArrayOutputStream();
         plainTextWithIntegrity.write(plainText);
         MessageDigest digest = channelConfig.getDigest();
         byte[] integrityHash = SecureOp.calculateHash(digest, plainText);
-        System.out.println("Integrity hash: " + SecureOp.bytesToHex(integrityHash));
         plainTextWithIntegrity.write(integrityHash);
         byte[] cipherText;
         if (channelConfig.hasIV()) {
@@ -100,26 +100,19 @@ public class SCMPSocket extends MulticastSocket {
                     channelConfig.getSymKey(),
                     null);
         }
-        System.out.println("Plain text + int: " + SecureOp.bytesToHex(plainTextWithIntegrity.toByteArray()));
         dataStream.writeInt(cipherText.length);
-        System.out.println("CT l:" + cipherText.length);
         dataStream.write(cipherText);
-        System.out.println("Ciphertext: " + SecureOp.bytesToHex(cipherText));
 
         // Fast hash
         byte[] message = byteStream.toByteArray();
         byte[] authenticityHMAC = SecureOp.calculateHMAC(channelConfig.getMac(), channelConfig.getMacKey(), message);
         dataStream.write(authenticityHMAC);
-        System.out.println("Fast hash: " + SecureOp.bytesToHex(authenticityHMAC));
 
         byte[] result = byteStream.toByteArray();
-        System.out.println("Sent: " + result.length);
         return result;
     }
 
     private byte[] decode(byte[] message) throws TamperedException, InvalidKeyException, IOException {
-        System.out.println(SecureOp.bytesToHex(message));
-        System.out.println("Received: " + message.length);
         ByteArrayInputStream byteStream = new ByteArrayInputStream(message);
         DataInputStream dataStream = new DataInputStream(byteStream);
 
@@ -160,10 +153,13 @@ public class SCMPSocket extends MulticastSocket {
             throw new RuntimeException("Mismatched integrity algorithm");
         }
 
-        attribute = dataStream.readNBytes(attributeLength);
-        if (!Arrays.equals(attribute, channelConfig.getMacDigest())) {
+        if (!Arrays.equals(dataStream.readNBytes(attributeLength), channelConfig.getMacDigest())) {
             throw new RuntimeException("Mismatched mac algorithm");
         }
+
+        int seqNum = dataStream.readInt();
+        int nounce = dataStream.readInt();
+        System.out.println("SN:" + seqNum + " Nouce:" + nounce);
 
         //Payload
         int cipherTextLength = dataStream.readInt();
@@ -208,7 +204,6 @@ public class SCMPSocket extends MulticastSocket {
         // Integrity check
         MessageDigest integrityDigestImpl = channelConfig.getDigest();
 
-        System.out.println("Plain text + int: " + SecureOp.bytesToHex(plainTextAndIntegrity));
         byte[] plainText = Arrays.copyOfRange(
                 plainTextAndIntegrity,
                 0,

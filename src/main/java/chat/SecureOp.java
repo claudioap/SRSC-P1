@@ -50,12 +50,8 @@ public class SecureOp {
             } else {
                 cipher.init(Cipher.DECRYPT_MODE, sessionKey, ivSpec);
             }
-
-            ByteBuffer plainText = ByteBuffer.allocate(cipher.getOutputSize(cipherText.capacity()));
-            cipher.update(cipherText, plainText);
-            cipher.doFinal(cipherText, plainText);
-            return plainText.array();
-        } catch (InvalidAlgorithmParameterException | InvalidKeyException | BadPaddingException | IllegalBlockSizeException | ShortBufferException e) {
+            return cipher.doFinal(cipherText.array());
+        } catch (InvalidAlgorithmParameterException | InvalidKeyException | BadPaddingException | IllegalBlockSizeException e) {
             e.printStackTrace();
             throw new RuntimeException();
         }
@@ -90,6 +86,13 @@ public class SecureOp {
         digest.reset();
         digest.update(data);
         return digest.digest();
+    }
+
+    public static void assertValidHash(MessageDigest digest, byte[] data, byte[] expected) throws TamperedException {
+        byte[] hash = calculateHash(digest, data);
+        if (!Arrays.equals(expected, hash)) {
+            throw new TamperedException(hash, expected);
+        }
     }
 
     /**
